@@ -1,0 +1,48 @@
+# Importing the libraries
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder, StandardScaler
+from sklearn.model_selection import train_test_split
+
+# Load the Dataset
+dataset = pd.read_csv('/Wholesale customers data.csv')
+
+# Separate features (X) and dependent variable (y)
+# Assuming the last column is the target (y) and the rest are features (X)
+X = dataset.iloc[:, :-1].values
+y = dataset.iloc[:, -1].values
+
+print("Original Data:\n", dataset.head())
+
+# Taking care of missing data
+# We replace missing numerical values with the 'mean' of the column
+imputer = SimpleImputer(missing_values=np.nan, strategy='mean')
+# Adjust the range [:, 1:3] to match the columns with numbers in your specific dataset
+imputer.fit(X[:, 1:3])
+X[:, 1:3] = imputer.transform(X[:, 1:3])
+
+# 3. Encoding categorical data
+# Encoding the Independent Variable (e.g., Country names)
+ct = ColumnTransformer(transformers=[('encoder', OneHotEncoder(), [0])], remainder='passthrough')
+X = ct.fit_transform(X) # Removed .toarray() as it's already a dense array
+
+# Encoding the Dependent Variable (e.g., Yes/No)
+le = LabelEncoder()
+y = le.fit_transform(y)
+
+# 4. Splitting the dataset into the Training set and Test set
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
+
+# 5. Feature Scaling
+# This puts all numbers on the same scale (usually between -3 and 3)
+sc = StandardScaler()
+# Note: We do not fit the scaler on the test set to avoid data leakage
+X_train[:, 3:] = sc.fit_transform(X_train[:, 3:])
+X_test[:, 3:] = sc.transform(X_test[:, 3:])
+
+print("\nProcessing Complete.")
+print("X_train shape:", X_train.shape)
+print("y_train shape:", y_train.shape)

@@ -1,0 +1,103 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, confusion_matrix, precision_recall_curve, auc
+
+# LOAD & PREPROCESS DATA
+print("⏳ Loading Dataset...")
+try:
+    df = pd.read_csv('/content/creditcard.csv')
+except FileNotFoundError:
+    print("❌ Error: 'creditcard.csv' not found. Please upload the file.")
+    exit()
+
+# Separate Target and Features
+X = df.drop('Class', axis=1)
+y = df['Class']
+
+# Handle NaN values in y more robustly: combine X and y, drop rows with NaN in 'Class', then split again
+initial_rows = len(df)
+df_combined = pd.concat([X, y], axis=1)
+df_combined.dropna(subset=['Class'], inplace=True)
+if len(df_combined) < initial_rows:
+    print(f"🗑️ Dropped {initial_rows - len(df_combined)} rows due to NaN values in 'Class' column.")
+
+X = df_combined.drop('Class', axis=1)
+y = df_combined['Class']
+
+# Scale the 'Amount' and 'Time' columns (Good practice for complex datasets)
+scaler = StandardScaler()
+X[['Time', 'Amount']] = scaler.fit_transform(X[['Time', 'Amount']])
+
+# Split Data (80% Train, 20% Test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+print(f"✅ Data Loaded. Training Shape: {X_train.shape}")
+print(f"   Fraud Cases in Train: {sum(y_train == 1)}")
+
+# HYPERPARAMETER TUNING
+# We tune 'n_estimators' (number of trees) and 'max_depth' (tree depth)
+# Note: We use a smaller subset for tuning to save time, then train on full data
+print("\n🔍 Starting Hyperparameter Tuning (this may take 2-3 mins)...")
+
+param_dist = {
+    'n_estimators': [50, 100, 200],
+    'max_depth': [10, 20, None],
+    'min_samples_split': [2, 5],
+    'class_weight': ['balanced', 'balanced_subsample']
+}
+
+rf = RandomForestClassifier(random_state=42, n_jobs=-1)
+
+# RandomizedSearch is faster than GridSearch for large datasets
+random_search = RandomizedSearchCV(estimator=rf, param_distributions=param_dist,
+                                   n_iter=5, cv=3, scoring='f1', verbose=2, n_jobs=-1, random_state=42)
+
+# Fit on a smaller sample (10% of data) to speed up tuning, or full data if you have time
+# Here we use X_train directly (might take time).
+# To speed up: random_search.fit(X_train[:10000], y_train[:10000])
+random_search.fit(X_train, y_train)
+
+best_model = random_search.best_estimator_
+print(f"\n🏆 Best Parameters Found: {random_search.best_params_}")
+
+# CROSS-VALIDATION
+print("\n🔄 Performing Cross-Validation (checking model stability)...")
+cv_scores = cross_val_score(best_model, X_train, y_train, cv=3, scoring='f1')
+print(f"   Average F1-Score (CV): {np.mean(cv_scores):.4f}")
+
+# FINAL EVALUATION
+print("\n🧪 Evaluating on Test Set...")
+y_pred = best_model.predict(X_test)
+
+print("\n📊 Classification Report:")
+print(classification_report(y_test, y_pred))
+
+# Confusion Matrix Visualization
+plt.figure(figsize=(6, 5))
+sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues')
+plt.title("Confusion Matrix")
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.savefig('confusion_matrix.png')
+plt.show()
+
+# FEATURE IMPORTANCE ANALYSIS
+importances = best_model.feature_importances_
+indices = np.argsort(importances)[::-1]
+top_n = 10  # Show top 10 features
+
+plt.figure(figsize=(10, 6))
+plt.title(f"Top {top_n} Most Important Features")
+plt.bar(range(top_n), importances[indices[:top_n]], align="center")
+plt.xticks(range(top_n), [X.columns[i] for i in indices[:top_n]], rotation=45)
+plt.xlim([-1, top_n])
+plt.tight_layout()
+plt.savefig('feature_importance.png')
+plt.show()
+
+print("\n✅ Task Complete!")

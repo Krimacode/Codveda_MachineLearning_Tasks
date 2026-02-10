@@ -1,0 +1,71 @@
+import tensorflow as tf
+from tensorflow.keras import layers, models
+import matplotlib.pyplot as plt
+import numpy as np
+
+# LOAD & PREPROCESS DATA
+print("⏳ Loading MNIST Dataset...")
+mnist = tf.keras.datasets.mnist
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# Normalize pixel values to be between 0 and 1 (Neural Networks love small numbers)
+x_train, x_test = x_train / 255.0, x_test / 255.0
+
+print(f"✅ Data Loaded. Training Images: {x_train.shape[0]}")
+print(f"   Image Size: {x_train.shape[1]}x{x_train.shape[2]} pixels")
+
+# DESIGN NEURAL NETWORK ARCHITECTURE
+# We use a simple Feed-Forward Network (Dense Layers)
+model = models.Sequential([
+    layers.Flatten(input_shape=(28, 28)),       # Step 1: Flatten 28x28 image into a 1D array
+    layers.Dense(128, activation='relu'),       # Step 2: Hidden Layer (128 neurons, ReLU activation)
+    layers.Dropout(0.2),                        # Step 3: Dropout (prevents overfitting)
+    layers.Dense(10, activation='softmax')      # Step 4: Output Layer (10 neurons for digits 0-9)
+])
+
+# COMPILE MODEL
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+print("\n🧠 Model Architecture:")
+model.summary()
+
+# TRAIN MODEL (Backpropagation)
+print("\n🚀 Starting Training (5 Epochs)...")
+history = model.fit(x_train, y_train, epochs=5, validation_split=0.1)
+
+# EVALUATE MODEL
+print("\n🧪 Evaluating on Test Data...")
+test_loss, test_acc = model.evaluate(x_test, y_test, verbose=2)
+print(f"\n🏆 Final Test Accuracy: {test_acc*100:.2f}%")
+
+# VISUALIZE TRAINING/VALIDATION LOSS
+# Plotting Accuracy
+plt.figure(figsize=(12, 4))
+
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend(loc='lower right')
+
+# Plotting Loss
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss (The "Learning Curve")')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend(loc='upper right')
+
+plt.tight_layout()
+plt.savefig('training_performance.png')
+plt.show()
+
+# Optional: Predict a specific image to see it in action
+predictions = model.predict(x_test[:1])
+print(f"\n🔮 Model Prediction for First Test Image: {np.argmax(predictions[0])}")
+print(f"   Actual Label: {y_test[0]}")
